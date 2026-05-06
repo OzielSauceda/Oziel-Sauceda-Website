@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code per-user state
+.claude/
+
+# original bear assets (optimized version lives in public/)
+/My Graduation Bear*.png

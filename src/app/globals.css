@@ -1,26 +1,111 @@
 @import "tailwindcss";
 
+@theme {
+  --color-bone: #3b0764;
+  --color-cream: rgba(255, 247, 237, 0.06);
+  --color-ink: #fff7ed;
+  --color-muted: #fbcfe8;
+  --color-hairline: rgba(255, 247, 237, 0.2);
+  --color-accent: #facc15;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --shadow-float:
+    0 1px 2px rgba(17, 16, 14, 0.04),
+    0 14px 30px -10px rgba(17, 16, 14, 0.08),
+    0 36px 60px -28px rgba(17, 16, 14, 0.18);
+
+  --shadow-lift:
+    0 1px 2px rgba(17, 16, 14, 0.05),
+    0 24px 44px -12px rgba(17, 16, 14, 0.12),
+    0 56px 80px -32px rgba(17, 16, 14, 0.22);
+
+  --ease-apple: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --grad-1: #ec4899;
+  --grad-2: #c026d3;
+  --grad-3: #a855f7;
+  --grad-4: #6b21a8;
+  --grad-5: #3b0764;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  min-height: 100vh;
+  background: linear-gradient(
+    180deg,
+    var(--grad-1) 0%,
+    var(--grad-2) 28%,
+    var(--grad-3) 55%,
+    var(--grad-4) 82%,
+    var(--grad-5) 100%
+  );
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bone);
+}
+
+@property --glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #facc15;
+}
+
+.sticker {
+  filter: drop-shadow(0 0 4px var(--glow))
+    drop-shadow(0 0 14px var(--glow))
+    drop-shadow(0 6px 12px rgba(20, 0, 40, 0.45));
+  animation: bear-glow 4.5s linear infinite;
+}
+
+@keyframes bear-glow {
+  0% {
+    --glow: #facc15;
+  }
+  12.5% {
+    --glow: #84cc16;
+  }
+  25% {
+    --glow: #14b8a6;
+  }
+  37.5% {
+    --glow: #3b82f6;
+  }
+  50% {
+    --glow: #8b5cf6;
+  }
+  62.5% {
+    --glow: #ec4899;
+  }
+  75% {
+    --glow: #ef4444;
+  }
+  87.5% {
+    --glow: #f97316;
+  }
+  100% {
+    --glow: #facc15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
