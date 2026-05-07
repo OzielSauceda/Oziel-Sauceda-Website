@@ -1,8 +1,11 @@
 "use client";
-// reason: typewriter reveal + line cycling needs client-side timers + state
+// reason: typewriter reveal, line cycling, and broadcasting the bear's
+// "is talking" signal to the header all need client-side timers + state
 
 import { useEffect, useState } from "react";
 import { useReducedMotion } from "motion/react";
+import { setBearSpeaking } from "@/lib/bear-typing";
+import { isPauseChar, pauseAfter } from "@/lib/typing";
 
 const LINES = [
   "* hi! welcome to my site.",
@@ -16,6 +19,7 @@ const LINES = [
 const TYPE_INTERVAL_MS = 55;
 const HOLD_AFTER_TYPED_MS = 3200;
 const INITIAL_DELAY_MS = 600;
+const NEXT_LINE_START_DELAY_MS = 250;
 
 export function BearSpeech() {
   const reduced = useReducedMotion();
@@ -27,32 +31,48 @@ export function BearSpeech() {
   useEffect(() => {
     if (reduced) {
       setShown(currentLine.length);
+      setBearSpeaking(false);
       return;
     }
-    setShown(0);
-    let i = 0;
-    let typeTick: number | undefined;
-    let holdTimer: number | undefined;
-    const isFirstLine = lineIdx === 0;
-    const startDelay = isFirstLine ? INITIAL_DELAY_MS : 250;
 
-    const startTimer = window.setTimeout(() => {
-      typeTick = window.setInterval(() => {
-        i += 1;
-        setShown(i);
-        if (i >= currentLine.length) {
-          if (typeTick !== undefined) window.clearInterval(typeTick);
-          holdTimer = window.setTimeout(() => {
-            setLineIdx((idx) => idx + 1);
-          }, HOLD_AFTER_TYPED_MS);
-        }
-      }, TYPE_INTERVAL_MS);
+    setShown(0);
+    setBearSpeaking(false);
+
+    let i = 0;
+    let timer: number | undefined;
+
+    const typeNext = () => {
+      i += 1;
+      setShown(i);
+
+      if (i >= currentLine.length) {
+        // Sentence finished — close the mouth and hold before next line.
+        setBearSpeaking(false);
+        timer = window.setTimeout(() => {
+          setLineIdx((idx) => idx + 1);
+        }, HOLD_AFTER_TYPED_MS);
+        return;
+      }
+
+      const justTyped = currentLine[i - 1] ?? "";
+      const pausing = isPauseChar(justTyped);
+      // Mouth closes during a punctuation pause, opens again as soon
+      // as the next character starts typing.
+      setBearSpeaking(!pausing);
+
+      timer = window.setTimeout(typeNext, pauseAfter(justTyped, TYPE_INTERVAL_MS));
+    };
+
+    const startDelay =
+      lineIdx === 0 ? INITIAL_DELAY_MS : NEXT_LINE_START_DELAY_MS;
+    timer = window.setTimeout(() => {
+      setBearSpeaking(true);
+      typeNext();
     }, startDelay);
 
     return () => {
-      window.clearTimeout(startTimer);
-      if (typeTick !== undefined) window.clearInterval(typeTick);
-      if (holdTimer !== undefined) window.clearTimeout(holdTimer);
+      if (timer !== undefined) window.clearTimeout(timer);
+      setBearSpeaking(false);
     };
   }, [reduced, lineIdx, currentLine]);
 
