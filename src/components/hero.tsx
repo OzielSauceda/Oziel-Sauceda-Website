@@ -3,8 +3,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 
-const HEADLINE =
-  "Building considered work in software, research, and the spaces between.";
+const HEADLINE = "Welcome to the Sauce Site";
 
 type RenderItem =
   | {
@@ -25,7 +24,7 @@ const RENDER: RenderItem[] = (() => {
     const chars = [...word].map((c) => ({ char: c, idx: g++ }));
     out.push({
       type: "word",
-      isAccent: word === "considered",
+      isAccent: word === "Sauce",
       chars,
       key: `w${wordIdx}`,
     });
@@ -59,7 +58,7 @@ export function Hero() {
 
   return (
     <section className="relative px-10 pt-20 pb-24 sm:px-16 sm:pt-28 sm:pb-32 md:pl-32">
-      <h1 className="max-w-5xl font-sans text-[clamp(2.5rem,6.5vw,5.25rem)] font-medium leading-[1.05] tracking-[-0.035em] text-ink">
+      <h1 className="max-w-5xl font-pixel text-[clamp(1.75rem,4.5vw,3.75rem)] font-normal leading-[1.35] tracking-normal text-ink">
         {RENDER.map((item) => {
           if (item.type === "word") {
             return (

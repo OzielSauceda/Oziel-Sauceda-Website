@@ -3,7 +3,7 @@ Preserves internal whites (eye highlights) since they aren't edge-connected."""
 from PIL import Image, ImageDraw
 from pathlib import Path
 
-src = Path(__file__).parent.parent / "public" / "bear.png"
+src = Path(__file__).parent.parent / "public" / "bear-sticker-v3.png"
 img = Image.open(src).convert("RGBA")
 w, h = img.size
 

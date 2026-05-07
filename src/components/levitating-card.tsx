@@ -101,7 +101,7 @@ export function LevitatingCard({
       </span>
       <span
         aria-label={title}
-        className="mt-10 block whitespace-nowrap pt-2 text-[3.25rem] font-medium leading-[1.05] tracking-[-0.045em] sm:text-[4.5rem]"
+        className="mt-10 block whitespace-nowrap pt-2 font-pixel text-[2rem] font-normal leading-[1.2] tracking-normal sm:text-[3rem]"
       >
         {items.map((item, i) => {
           if (item.isArrow) {
@@ -111,7 +111,7 @@ export function LevitatingCard({
                 aria-hidden
                 custom={i}
                 variants={variants}
-                className="ml-3 inline-block translate-y-[-0.14em] text-3xl sm:ml-4 sm:text-4xl"
+                className="ml-2 inline-block translate-y-[-0.05em] text-lg sm:ml-3 sm:text-xl"
               >
                 {item.char}
               </motion.span>

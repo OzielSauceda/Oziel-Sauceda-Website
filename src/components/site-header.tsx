@@ -25,16 +25,18 @@ export function SiteHeader() {
         className="flex items-center gap-4"
         aria-label="Oziel — home"
       >
-        <Image
-          src="/bear-sticker.png"
-          alt=""
-          width={84}
-          height={112}
-          sizes="84px"
-          className="sticker h-28 w-auto shrink-0"
-          priority
-        />
-        <span className="font-sans text-2xl font-semibold tracking-tight text-ink">
+        <span className="bear-stage shrink-0">
+          <Image
+            src="/bear-sticker-v6.png"
+            alt=""
+            width={73}
+            height={80}
+            sizes="73px"
+            className="sticker bear-float pixel-art h-20 w-auto"
+            priority
+          />
+        </span>
+        <span className="font-pixel text-base font-normal tracking-normal text-ink sm:text-lg">
           Oziel
         </span>
       </a>
