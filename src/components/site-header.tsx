@@ -1,11 +1,13 @@
 "use client";
-// reason: uses motion for the page-load reveal
+// reason: uses motion for the page-load reveal + subscribes to the bear's typing signal so the mouth animates while text is streaming
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "motion/react";
+import { useBearSpeaking } from "@/lib/bear-typing";
 
 export function SiteHeader() {
   const reduced = useReducedMotion();
+  const speaking = useBearSpeaking();
   const initial = reduced ? false : { opacity: 0, y: -8 };
   const animate = { opacity: 1, y: 0 };
   const transition = {
@@ -26,15 +28,30 @@ export function SiteHeader() {
         aria-label="Oziel — home"
       >
         <span className="bear-stage shrink-0">
-          <Image
-            src="/bear-sticker-v6.png"
-            alt=""
-            width={73}
-            height={80}
-            sizes="73px"
-            className="sticker bear-float pixel-art h-20 w-auto"
-            priority
-          />
+          <span
+            className={`talk-stack sticker bear-float block ${speaking ? "is-speaking" : ""}`}
+            style={{ width: 96, height: 96 }}
+          >
+            <Image
+              src="/bear-closed.png"
+              alt=""
+              width={96}
+              height={96}
+              sizes="96px"
+              priority
+              className="pixel-art talk-base"
+            />
+            <Image
+              src="/bear-talking.png"
+              alt=""
+              aria-hidden
+              width={96}
+              height={96}
+              sizes="96px"
+              priority
+              className="pixel-art talk-mouth"
+            />
+          </span>
         </span>
         <span className="font-pixel text-base font-normal tracking-normal text-ink sm:text-lg">
           Oziel

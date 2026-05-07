@@ -1,5 +1,6 @@
 import { BearSpeech } from "@/components/bear-speech";
 import { Hero } from "@/components/hero";
+import { IdleCat } from "@/components/idle-cat";
 import { Sections } from "@/components/sections";
 import { SiteHeader } from "@/components/site-header";
 
@@ -10,6 +11,7 @@ export default function Home() {
       <div className="px-10 pt-2 sm:px-16">
         <BearSpeech />
       </div>
+      <IdleCat />
       <Hero />
       <Sections />
 

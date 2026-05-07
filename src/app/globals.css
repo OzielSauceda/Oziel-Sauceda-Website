@@ -145,6 +145,52 @@ body {
   will-change: transform;
 }
 
+/* Two-frame mouth swap. Both sprites stack absolutely. Each cycle one
+   sprite is fully visible and the other is fully hidden — never both at
+   once — otherwise differences between the two silhouettes (chin, jaw)
+   bleed through and look like a flickering darker outline. */
+.talk-stack {
+  position: relative;
+  display: inline-block;
+}
+.talk-stack > img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.talk-base {
+  opacity: 1;
+}
+.talk-mouth {
+  opacity: 0;
+}
+.is-speaking .talk-base {
+  animation: talk-base-fade 280ms step-end infinite;
+}
+.is-speaking .talk-mouth {
+  animation: talk-mouth-fade 280ms step-end infinite;
+}
+
+@keyframes talk-base-fade {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes talk-mouth-fade {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
