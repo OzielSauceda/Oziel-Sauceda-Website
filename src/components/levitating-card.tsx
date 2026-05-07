@@ -1,22 +1,30 @@
 "use client";
-// reason: per-letter motion (the wave + per-letter color cycle for the rainbow flow) requires motion components + useReducedMotion hook + parent hover state propagation via variants
+// reason: nested motion components (lift + per-letter sine drift + rainbow cycle) need motion + useReducedMotion + parent hover propagation via variants
 
 import { motion, useReducedMotion, type Variants } from "motion/react";
 
+// Tuned to the magenta→violet ground: warm-led with two cool reliefs so the
+// cycle feels like dusk over the gradient instead of a stock RGB wheel.
 const RAINBOW = [
-  "#ef4444",
-  "#f97316",
-  "#eab308",
-  "#84cc16",
-  "#14b8a6",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
+  "#fff3b0",
+  "#facc15",
+  "#ff9c5c",
+  "#ff5d8f",
+  "#ff5dd0",
+  "#c084fc",
+  "#86efac",
+  "#7dd3fc",
 ] as const;
 
-function rotateRainbow(startIndex: number): string[] {
+function rotateRainbow(letterIdx: number, itemCount: number): string[] {
   const n = RAINBOW.length;
-  const k = ((startIndex % n) + n) % n;
+  // Words shorter than the palette get an even spread across all 8 stops so
+  // the full rainbow is visible at any moment, not just clumped-adjacent hues.
+  // Words at or beyond palette length keep the 1-letter = 1-stop march.
+  const k =
+    itemCount >= n
+      ? ((letterIdx % n) + n) % n
+      : Math.round((letterIdx / itemCount) * n) % n;
   const arr = [...RAINBOW.slice(k), ...RAINBOW.slice(0, k)];
   arr.push(arr[0]); // close the loop seamlessly
   return arr;
@@ -26,22 +34,32 @@ type LevitatingCardProps = {
   label: string;
   title: string;
   href?: string;
-  amplitude?: number;
-  cycleDuration?: number;
+  baseLift?: number;
+  bobAmplitude?: number;
+  bobDuration?: number;
   rainbowDuration?: number;
 };
 
-// Half-sine sample points: smooth rise → natural lingering peak → smooth descend.
-// No flat hold means no stiffness; the slow apex velocity *is* the hover feel.
-const SINE_FRACTIONS = [0, 0.383, 0.707, 0.924, 1, 0.924, 0.707, 0.383, 0];
-const SINE_TIMES = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
+const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
+// Full sine sampled at 9 points — drifts above and below the hover height,
+// returns to its phase origin so repeat: Infinity loops without a snap.
+const BOB_TIMES = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
+const BOB_SHAPE = [0, -0.707, -1, -0.707, 0, 0.707, 1, 0.707, 0] as const;
+
+const LIFT_DURATION = 0.55;
+const LIFT_STAGGER = 0.022;
+// Wave starts while letters are still rising — composes cleanly with the
+// lift (ease-out is ~70% complete by here) and skips the staged pause.
+const BOB_START_OFFSET = 0.15;
 
 export function LevitatingCard({
   label,
   title,
   href,
-  amplitude = 12,
-  cycleDuration = 0.95,
+  baseLift = 8,
+  bobAmplitude = 3,
+  bobDuration = 1.7,
   rainbowDuration = 2.7,
 }: LevitatingCardProps) {
   const reduced = useReducedMotion();
@@ -52,35 +70,52 @@ export function LevitatingCard({
   );
   if (href) items.push({ char: "→", isArrow: true });
 
-  // Stagger derived so every word completes a full wave in `cycleDuration`,
-  // regardless of letter count — keeps the pace identical across sections.
-  const letterStagger = cycleDuration / items.length;
-  const yKeyframes = SINE_FRACTIONS.map((f) => -amplitude * f);
+  // Phase-offset each letter across one full bob period so a soft wave rolls
+  // through the word at the same pace regardless of its length.
+  const bobStagger = bobDuration / items.length;
+  const bobKeyframes = BOB_SHAPE.map((s) => bobAmplitude * s);
 
-  const variants: Variants = {
+  const liftVariants: Variants = {
     rest: {
       y: 0,
       color: "var(--color-ink)",
-      transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+      transition: { duration: 0.45, ease: EASE_OUT },
     },
     hover: (i: number) => ({
-      y: reduced ? 0 : yKeyframes,
-      color: reduced ? "var(--color-accent)" : rotateRainbow(i),
+      y: reduced ? 0 : -baseLift,
+      color: reduced ? "var(--color-accent)" : rotateRainbow(i, items.length),
       transition: reduced
         ? { duration: 0 }
         : {
             y: {
-              duration: cycleDuration,
-              delay: i * letterStagger,
-              repeat: Infinity,
-              times: SINE_TIMES,
-              ease: "linear",
+              duration: LIFT_DURATION,
+              ease: EASE_OUT,
+              delay: i * LIFT_STAGGER,
             },
             color: {
               duration: rainbowDuration,
               repeat: Infinity,
               ease: "linear",
             },
+          },
+    }),
+  };
+
+  const bobVariants: Variants = {
+    rest: {
+      y: 0,
+      transition: { duration: 0.45, ease: EASE_OUT },
+    },
+    hover: (i: number) => ({
+      y: reduced ? 0 : bobKeyframes,
+      transition: reduced
+        ? { duration: 0 }
+        : {
+            duration: bobDuration,
+            delay: BOB_START_OFFSET + i * bobStagger,
+            repeat: Infinity,
+            times: BOB_TIMES,
+            ease: "linear",
           },
     }),
   };
@@ -104,29 +139,24 @@ export function LevitatingCard({
         className="mt-10 block whitespace-nowrap pt-2 font-pixel text-[2rem] font-normal leading-[1.2] tracking-normal sm:text-[3rem]"
       >
         {items.map((item, i) => {
-          if (item.isArrow) {
-            return (
-              <motion.span
-                key="arrow"
-                aria-hidden
-                custom={i}
-                variants={variants}
-                className="ml-2 inline-block translate-y-[-0.05em] text-lg sm:ml-3 sm:text-xl"
-              >
-                {item.char}
-              </motion.span>
-            );
-          }
-
+          const outerClass = item.isArrow
+            ? "ml-2 inline-block translate-y-[-0.05em] text-lg sm:ml-3 sm:text-xl"
+            : "inline-block";
           return (
             <motion.span
-              key={`${item.char}-${i}`}
+              key={item.isArrow ? "arrow" : `${item.char}-${i}`}
               aria-hidden
               custom={i}
-              variants={variants}
-              className="inline-block"
+              variants={liftVariants}
+              className={outerClass}
             >
-              {item.char === " " ? " " : item.char}
+              <motion.span
+                custom={i}
+                variants={bobVariants}
+                className="inline-block"
+              >
+                {item.char === " " ? " " : item.char}
+              </motion.span>
             </motion.span>
           );
         })}

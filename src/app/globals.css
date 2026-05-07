@@ -67,6 +67,30 @@ body {
   image-rendering: crisp-edges;
 }
 
+.pixel-box {
+  background:
+    linear-gradient(#0a0212, #0a0212) top / 100% 4px no-repeat,
+    linear-gradient(#0a0212, #0a0212) bottom / 100% 4px no-repeat,
+    linear-gradient(#0a0212, #0a0212) left / 4px 100% no-repeat,
+    linear-gradient(#0a0212, #0a0212) right / 4px 100% no-repeat,
+    var(--color-ink);
+  clip-path: polygon(
+    4px 0,
+    calc(100% - 4px) 0,
+    calc(100% - 4px) 4px,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 4px) calc(100% - 4px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    4px calc(100% - 4px),
+    0 calc(100% - 4px),
+    0 4px,
+    4px 4px
+  );
+  filter: drop-shadow(0 3px 0 rgba(10, 2, 18, 0.32));
+}
+
 .bear-stage {
   position: relative;
   display: inline-flex;
