@@ -158,18 +158,16 @@ body {
   position: relative;
   display: inline-block;
 }
-/* Cover both raw <img> and any wrapper Next/Image inserts (varies by
-   version). Direct children are positioned, then images inside any
-   wrapper inherit the full footprint. */
-.talk-stack > * {
+/* Next/Image's wrapper depth varies by version — Next 14 sometimes
+   yields a raw <img>, Next 15 a <span><img>, Next 16 Turbopack a
+   <span><span><img>. Position every level the same way so the closed
+   and talking frames always overlap at the same coords. */
+.talk-stack > *,
+.talk-stack > * > *,
+.talk-stack img {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.talk-stack > * > img {
   width: 100%;
   height: 100%;
   display: block;
