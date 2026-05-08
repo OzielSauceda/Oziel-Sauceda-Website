@@ -60,7 +60,7 @@ const APPLE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 const PIPE_DURATION = 0.45;
 const PIPE_EASE: [number, number, number, number] = [0.4, 0, 0.6, 1];
 
-const CAT_SIZE = 96;
+const CAT_SIZE = 112;
 const CAT_LEFT = 4;
 // Cat sits near the bottom of its 360-px container so the bubble can
 // stack above it (top-right). The container as a whole gets nudged

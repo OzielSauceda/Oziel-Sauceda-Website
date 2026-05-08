@@ -82,7 +82,7 @@ export function BearSpeech() {
     <div className="inline-flex flex-col items-start">
       <div
         aria-hidden
-        className="ml-7 h-12 w-[4px] sm:ml-8 sm:h-14"
+        className="ml-[54px] h-12 w-[4px] sm:h-14"
         style={{
           background:
             "repeating-linear-gradient(to bottom, var(--color-ink) 0 6px, transparent 6px 12px)",

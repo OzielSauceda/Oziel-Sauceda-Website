@@ -20,7 +20,7 @@ const TYPE_INTERVAL_MS = 50;
 const HOLD_AFTER_TYPED_MS = 2800;
 const INITIAL_DELAY_MS = 900;
 const NEXT_LINE_DELAY_MS = 320;
-const CAT_SIZE = 96;
+const CAT_SIZE = 112;
 const PIPE_DURATION = 0.45;
 // Snappy ease-in-out so the slide reads as a sprite swap, not a smooth fade.
 const PIPE_EASE: [number, number, number, number] = [0.4, 0, 0.6, 1];
@@ -148,7 +148,7 @@ export function IdleCat() {
           >
             <div
               aria-hidden
-              className="mr-12 h-12 w-[4px] sm:h-14"
+              className="mr-[54px] h-12 w-[4px] sm:h-14"
               style={{
                 background:
                   "repeating-linear-gradient(to bottom, var(--color-ink) 0 6px, transparent 6px 12px)",

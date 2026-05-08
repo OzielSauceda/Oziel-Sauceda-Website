@@ -58,7 +58,10 @@ export function Hero() {
 
   return (
     <section className="relative px-10 pt-20 pb-24 sm:px-16 sm:pt-28 sm:pb-32 md:pl-32">
-      <h1 className="max-w-5xl font-pixel text-[clamp(1.75rem,4.5vw,3.75rem)] font-normal leading-[1.35] tracking-normal text-ink">
+      <h1
+        className="max-w-5xl font-pixel text-[clamp(1.75rem,4.5vw,3.75rem)] font-normal leading-[1.35] tracking-normal text-bone"
+        style={{ textShadow: "var(--shadow-pixel-text)" }}
+      >
         {RENDER.map((item) => {
           if (item.type === "word") {
             return (
