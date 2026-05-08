@@ -1,10 +1,11 @@
 "use client";
-// reason: nested motion components (lift + per-letter sine drift + rainbow cycle) need motion + useReducedMotion + parent hover propagation via variants
+// reason: nested motion components (lift + per-letter sine drift + per-letter color wipe) need motion + useReducedMotion + parent hover propagation via variants
 
 import { motion, useReducedMotion, type Variants } from "motion/react";
+import { AlbumSprite, type AlbumKey } from "./album-sprite";
 
-// Tuned to the magenta→violet ground: warm-led with two cool reliefs so the
-// cycle feels like dusk over the gradient instead of a stock RGB wheel.
+// Default palette for sections without an album stamp — warm-led with two
+// cool reliefs so the cycle feels like dusk over the magenta ground.
 const RAINBOW = [
   "#fff3b0",
   "#facc15",
@@ -16,19 +17,38 @@ const RAINBOW = [
   "#7dd3fc",
 ] as const;
 
-function rotateRainbow(letterIdx: number, itemCount: number): string[] {
-  const n = RAINBOW.length;
-  // Words shorter than the palette get an even spread across all 8 stops so
-  // the full rainbow is visible at any moment, not just clumped-adjacent hues.
-  // Words at or beyond palette length keep the 1-letter = 1-stop march.
+function rotateRainbow(
+  letterIdx: number,
+  itemCount: number,
+  palette: readonly string[],
+): string[] {
+  const n = palette.length;
   const k =
     itemCount >= n
       ? ((letterIdx % n) + n) % n
       : Math.round((letterIdx / itemCount) * n) % n;
-  const arr = [...RAINBOW.slice(k), ...RAINBOW.slice(0, k)];
+  const arr = [...palette.slice(k), ...palette.slice(0, k)];
   arr.push(arr[0]); // close the loop seamlessly
+  // Reverse so each letter walks backward through the palette — combined
+  // with letter i starting at palette[i], this makes the color bands flow
+  // left-to-right across the word instead of right-to-left.
+  arr.reverse();
   return arr;
 }
+
+export type AlbumStamp = {
+  // Settled text color — used at rest and after the hover wipe lands.
+  baseColor: string;
+  // Pixel-art hard offset shadow only. Always rendered. Glow lives on a
+  // separate animated layer so it can be hover-only.
+  textShadow: string;
+  // Soft glow color applied via drop-shadow filter on hover. Same value
+  // across all sections gets a consistent on-hover behavior; per-album
+  // colors keep each section's identity in the glow.
+  glowColor: string;
+  // Each letter receives wipeColors[i % length] during the hover cascade.
+  wipeColors: readonly string[];
+};
 
 type LevitatingCardProps = {
   label: string;
@@ -38,20 +58,24 @@ type LevitatingCardProps = {
   bobAmplitude?: number;
   bobDuration?: number;
   rainbowDuration?: number;
+  stamp?: AlbumStamp;
+  album?: AlbumKey;
 };
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
-// Full sine sampled at 9 points — drifts above and below the hover height,
-// returns to its phase origin so repeat: Infinity loops without a snap.
 const BOB_TIMES = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
 const BOB_SHAPE = [0, -0.707, -1, -0.707, 0, 0.707, 1, 0.707, 0] as const;
 
 const LIFT_DURATION = 0.55;
 const LIFT_STAGGER = 0.022;
-// Wave starts while letters are still rising — composes cleanly with the
-// lift (ease-out is ~70% complete by here) and skips the staged pause.
 const BOB_START_OFFSET = 0.15;
+
+// Shared pixel-art shadow for sections without a custom album stamp.
+// Definition lives in globals.css (`--shadow-pixel-text`) so the hero h1
+// and the non-album section titles render the same exact shadow.
+const DEFAULT_TEXT_SHADOW = "var(--shadow-pixel-text)";
+const DEFAULT_GLOW_COLOR = "rgba(217, 70, 239, 0.45)";
 
 export function LevitatingCard({
   label,
@@ -61,8 +85,11 @@ export function LevitatingCard({
   bobAmplitude = 3,
   bobDuration = 1.7,
   rainbowDuration = 2.7,
+  stamp,
+  album,
 }: LevitatingCardProps) {
   const reduced = useReducedMotion();
+  const useStamp = stamp !== undefined;
 
   const characters = title.split("");
   const items: Array<{ char: string; isArrow: boolean }> = characters.map(
@@ -70,23 +97,35 @@ export function LevitatingCard({
   );
   if (href) items.push({ char: "→", isArrow: true });
 
-  // Phase-offset each letter across one full bob period so a soft wave rolls
-  // through the word at the same pace regardless of its length.
   const bobStagger = bobDuration / items.length;
   const bobKeyframes = BOB_SHAPE.map((s) => bobAmplitude * s);
+
+  const restColor = useStamp ? stamp.baseColor : "var(--color-ink)";
 
   const liftVariants: Variants = {
     rest: {
       y: 0,
-      color: "var(--color-ink)",
+      color: restColor,
       transition: { duration: 0.45, ease: EASE_OUT },
     },
-    hover: (i: number) => ({
-      y: reduced ? 0 : -baseLift,
-      color: reduced ? "var(--color-accent)" : rotateRainbow(i, items.length),
-      transition: reduced
-        ? { duration: 0 }
-        : {
+    hover: (i: number) => {
+      if (reduced) {
+        return {
+          y: 0,
+          color: useStamp ? stamp.baseColor : "var(--color-accent)",
+          transition: { duration: 0 },
+        };
+      }
+
+      if (useStamp) {
+        return {
+          y: -baseLift,
+          // Same rotating-rainbow flow as the non-stamp sections, but using
+          // the album's wipeColors. Each letter starts at a different stop
+          // so the whole palette is visible across the word at any moment
+          // and continuously rolls through.
+          color: rotateRainbow(i, items.length, stamp.wipeColors),
+          transition: {
             y: {
               duration: LIFT_DURATION,
               ease: EASE_OUT,
@@ -98,7 +137,47 @@ export function LevitatingCard({
               ease: "linear",
             },
           },
-    }),
+        };
+      }
+
+      return {
+        y: -baseLift,
+        color: rotateRainbow(i, items.length, RAINBOW),
+        transition: {
+          y: {
+            duration: LIFT_DURATION,
+            ease: EASE_OUT,
+            delay: i * LIFT_STAGGER,
+          },
+          color: {
+            duration: rainbowDuration,
+            repeat: Infinity,
+            ease: "linear",
+          },
+        },
+      };
+    },
+  };
+
+  // Glow lives on the title span as an animated drop-shadow filter so it's
+  // hover-only and consistent across every section. The hard pixel offset
+  // (textShadow) stays static on the inline style.
+  const glowColor = useStamp ? stamp.glowColor : DEFAULT_GLOW_COLOR;
+  const titleVariants: Variants = {
+    rest: {
+      filter: "drop-shadow(0 0 0 rgba(0,0,0,0))",
+      transition: reduced
+        ? { duration: 0 }
+        : { duration: 0.3, ease: EASE_OUT },
+    },
+    hover: {
+      filter: reduced
+        ? "drop-shadow(0 0 0 rgba(0,0,0,0))"
+        : `drop-shadow(0 0 9px ${glowColor})`,
+      transition: reduced
+        ? { duration: 0 }
+        : { duration: 0.35, ease: EASE_OUT },
+    },
   };
 
   const bobVariants: Variants = {
@@ -131,12 +210,17 @@ export function LevitatingCard({
       whileFocus="hover"
       className="group relative inline-flex flex-col items-start no-underline outline-none"
     >
-      <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-accent">
+      <span className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.24em] text-accent">
+        {album ? <AlbumSprite album={album} size={26} /> : null}
         {label}
       </span>
-      <span
+      <motion.span
         aria-label={title}
+        variants={titleVariants}
         className="mt-10 block whitespace-nowrap pt-2 font-pixel text-[2rem] font-normal leading-[1.2] tracking-normal sm:text-[3rem]"
+        style={{
+          textShadow: useStamp ? stamp.textShadow : DEFAULT_TEXT_SHADOW,
+        }}
       >
         {items.map((item, i) => {
           const outerClass = item.isArrow
@@ -160,7 +244,7 @@ export function LevitatingCard({
             </motion.span>
           );
         })}
-      </span>
+      </motion.span>
     </Tag>
   );
 }

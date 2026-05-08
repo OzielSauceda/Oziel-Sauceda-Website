@@ -30,24 +30,24 @@ export function SiteHeader() {
         <span className="bear-stage shrink-0">
           <span
             className={`talk-stack sticker bear-float block ${speaking ? "is-speaking" : ""}`}
-            style={{ width: 96, height: 96 }}
+            style={{ width: 112, height: 112 }}
           >
             <Image
-              src="/bear-closed.png"
+              src="/oziel-closed-v5.png"
               alt=""
-              width={96}
-              height={96}
-              sizes="96px"
+              width={112}
+              height={112}
+              sizes="112px"
               priority
               className="pixel-art talk-base"
             />
             <Image
-              src="/bear-talking.png"
+              src="/oziel-talking-v5.png"
               alt=""
               aria-hidden
-              width={96}
-              height={96}
-              sizes="96px"
+              width={112}
+              height={112}
+              sizes="112px"
               priority
               className="pixel-art talk-mouth"
             />

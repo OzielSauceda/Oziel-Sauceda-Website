@@ -22,6 +22,11 @@
     0 24px 44px -12px rgba(17, 16, 14, 0.12),
     0 56px 80px -32px rgba(17, 16, 14, 0.22);
 
+  /* Pixel-art text shadow shared across pixel-font headings (hero + non-album
+     section titles). Hard 3px deep-plum offset grounds the type against the
+     magenta page bg, plus a soft accent glow that ties into the page system. */
+  --shadow-pixel-text: 3px 3px 0 #1a0828, 0 0 14px rgba(217, 70, 239, 0.28);
+
   --ease-apple: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
