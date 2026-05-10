@@ -11,6 +11,7 @@
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
   --font-pixel: var(--font-press-start), ui-monospace, monospace;
+  --font-display: var(--font-display), ui-serif, Georgia, serif;
 
   --shadow-float:
     0 1px 2px rgba(17, 16, 14, 0.04),
@@ -31,23 +32,28 @@
 }
 
 :root {
-  --grad-1: #ec4899;
-  --grad-2: #c026d3;
-  --grad-3: #a855f7;
-  --grad-4: #6b21a8;
-  --grad-5: #3b0764;
+  --bg-base: #150620;
+  --bg-deep: #0a0212;
+  --bloom-pink: rgba(236, 72, 153, 0.18);
+  --bloom-violet: rgba(168, 85, 247, 0.14);
 }
 
 html {
   min-height: 100vh;
-  background: linear-gradient(
+  scroll-behavior: smooth;
+  /* Solid dark plum fills the entire document; the gradient below sits
+     only at the top of the page in absolute pixel stops, so scrolling
+     reveals the dark base instead of dragging the pink band along. */
+  background-color: var(--bg-deep);
+  background-image: linear-gradient(
     180deg,
-    var(--grad-1) 0%,
-    var(--grad-2) 28%,
-    var(--grad-3) 55%,
-    var(--grad-4) 82%,
-    var(--grad-5) 100%
+    #4a1340 0,
+    #3a0e30 80px,
+    #210927 220px,
+    var(--bg-base) 420px,
+    var(--bg-deep) 720px
   );
+  background-repeat: no-repeat;
 }
 
 body {
@@ -102,27 +108,6 @@ body {
   isolation: isolate;
 }
 
-.bear-stage::before {
-  content: "";
-  position: absolute;
-  inset: -34% -40%;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      closest-side at 50% 55%,
-      rgba(250, 204, 21, 0.42),
-      rgba(250, 204, 21, 0) 72%
-    ),
-    radial-gradient(
-      closest-side at 30% 70%,
-      rgba(236, 72, 153, 0.32),
-      rgba(236, 72, 153, 0) 78%
-    );
-  filter: blur(10px);
-  animation: bear-bloom 7s ease-in-out infinite;
-}
-
 @keyframes bear-float {
   0%,
   100% {
@@ -133,21 +118,16 @@ body {
   }
 }
 
-@keyframes bear-bloom {
-  0%,
-  100% {
-    opacity: 0.85;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.04);
-  }
-}
-
 .bear-float {
   animation: bear-float 5.5s ease-in-out infinite;
   will-change: transform;
+}
+
+/* Pin a cat sprite in place — disables bear-float oscillation when the
+   sprite needs to feel anchored (used by the wheel-side companion so
+   she doesn't drift on hover/select). */
+.cat-static .bear-float {
+  animation: none;
 }
 
 /* Two-frame mouth swap. Both sprites stack absolutely. Each cycle one
@@ -203,6 +183,9 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   *::before,
   *::after {

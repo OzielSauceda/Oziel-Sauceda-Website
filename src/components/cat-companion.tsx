@@ -256,6 +256,7 @@ export function CatCompanion({ active }: { active: SectionId }) {
                 role="status"
                 aria-live="polite"
                 className="relative border-[3px] border-ink bg-[#0a0212] px-4 py-4 font-pixel text-[10px] leading-[1.7] text-ink shadow-[6px_6px_0_0_rgba(10,2,18,0.55)] sm:text-[10.5px]"
+                style={{ minHeight: 200 }}
               >
                 <div className="text-ink/55">{renderSeg(0)}</div>
                 <div className="mt-3 text-[12px] leading-[1.3] text-accent sm:text-[13px]">

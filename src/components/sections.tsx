@@ -1,263 +1,452 @@
 "use client";
-// reason: shared hover/focus state lifts above the section list so the cat companion can follow the active row
+// reason: a motion-value-driven cylindrical wheel — the centered slot is
+// the spotlight (full size + opacity), siblings recede with falloff. Wheel
+// + arrow keys + click-to-center rotate it. Initial wheel-of-fortune spin
+// slides the reel from a spun-up start into rest.
 
-import { useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import {
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+  type MotionValue,
+} from "motion/react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { setActiveSection } from "@/lib/cat-state";
-import { CAT_CENTER_Y, CatCompanion, type SectionId } from "./cat-companion";
+import { CatCompanion, type SectionId } from "./cat-companion";
 import { LevitatingCard, type AlbumStamp } from "./levitating-card";
 import { type AlbumKey } from "./album-sprite";
+import { RetroLaptop } from "./retro-laptop";
 
-// Roughly the Y of the big title's center within each <li>:
-// label (~14) + mt-10 (40) + pt-2 (8) + half of 48 px title ≈ 86 px.
-const TITLE_CENTER_Y_IN_LI = 88;
+// Geometry — mirrors SCREEN_H in retro-laptop.tsx so a slot is sized to fit
+// 5 sections exactly within the laptop screen.
+const SCREEN_H = 550;
+const SCREEN_HALF = SCREEN_H / 2;
+const SLOT_HEIGHT = 110;
+const N_SECTIONS = 5;
+// CYCLES copies of the section list are stacked into one tall column. The
+// reel translates within this column; when the user advances past
+// REAL_CYCLE ± snap_threshold cycles, we silently re-anchor to REAL_CYCLE so
+// the wheel feels infinite without DOM growth.
+const CYCLES = 21;
+const REAL_CYCLE = 10;
+const SNAP_THRESHOLD = 3;
 
-// College Dropout stamp: pulled directly off the album cover — burgundy
-// (bear's body and outer border), the ornate gold frame, the wooden-bench
-// honey, the bear's buff-cream face mask, and the dark brown shadows. No
-// purple, no blue — the cover is entirely warm tones. Cream text sits over
-// a burgundy pixel-shadow with a gold glow that nods to the gilded frame.
-// Deep umber sits between the taupe bridge and the dark brown to slow the
-// descent into the deepest shadow — the cover has plenty of mid-dark wood
-// tones (bench grain, bear's fur shading) that justify a stop there.
-const ABOUT_STAMP = {
+const itemColumnY = (cycle: number, idx: number) =>
+  (cycle * N_SECTIONS + idx) * SLOT_HEIGHT + SLOT_HEIGHT / 2;
+
+const reelYToCenter = (cycle: number, idx: number) =>
+  SCREEN_HALF - itemColumnY(cycle, idx);
+
+// Initial reel position — a few cycles above the resting position so the
+// intro animation slides items past the screen before settling.
+const INTRO_OFFSET_CYCLES = 4;
+const INTRO_DURATION_S = 2.5;
+const INTRO_EASE: [number, number, number, number] = [0.05, 0.7, 0.1, 1];
+
+const STEP_SPRING = {
+  type: "spring",
+  stiffness: 320,
+  damping: 30,
+  mass: 0.7,
+} as const;
+
+const WHEEL_LOCK_MS = 70;
+// Drag-throw projection: how many seconds of post-release velocity to honor
+// before snapping. Higher = flicks travel further before settling.
+const DRAG_PROJECTION_S = 0.18;
+
+
+const ABOUT_STAMP: AlbumStamp = {
   baseColor: "#f5e9d3",
   textShadow: "3px 3px 0 #3a1014",
-  glowColor: "rgba(212, 160, 64, 0.55)", // gold (frame)
+  glowColor: "rgba(212, 160, 64, 0.55)",
   wipeColors: [
-    "#6b1c24", // burgundy maroon (bear / outer border)
-    "#a04828", // copper rust → gold
-    "#d4a040", // rich frame gold
-    "#c8924a", // amber → honey wood
-    "#b97a3e", // honey wood (bleachers)
-    "#d4ac6e", // warm tan → buff cream
-    "#e8d4a8", // buff cream (bear's face mask)
-    "#c89060", // caramel (mid-lightness step bridges cream → taupe)
-    "#8a6850", // warm taupe → dark brown
-    "#6a3a18", // deep umber (mid-dark wood shadow)
-    "#3d2010", // dark wood brown (deepest shadows)
-    "#5a1a18", // deep oxblood → burgundy (closes loop)
+    "#6b1c24",
+    "#a04828",
+    "#d4a040",
+    "#c8924a",
+    "#d4ac6e",
+    "#e8d4a8",
+    "#8a6850",
+    "#3d2010",
   ],
-} as const;
+};
 
-// Yeezus stamp (Research): pulled from the actual album cover, which is
-// intentionally minimal — red sticker, cool off-white jewel case, silver-
-// chrome disc, black CD center, plus a subtle holographic icy-blue picked
-// from the disc's rainbow shimmer. Two extra mid-tone stops (warm pewter,
-// deeper holographic silver-blue) give the cool cluster more texture so
-// the rotation doesn't read as flat grays. Charcoal stays lifted from
-// pure black so it doesn't read as a hole sliding through the flow.
-// Yeezus's stark, clinical, focused aesthetic fits Research.
-const RESEARCH_STAMP = {
+const PROJECTS_STAMP: AlbumStamp = {
+  baseColor: "#f6e2c8",
+  textShadow: "3px 3px 0 #4a0a08",
+  glowColor: "rgba(214, 42, 42, 0.55)",
+  wipeColors: [
+    "#d62a2a",
+    "#d05828",
+    "#d4a040",
+    "#dca678",
+    "#d4a08c",
+    "#8a5a3a",
+    "#3d2418",
+    "#3e6e9c",
+  ],
+};
+
+const RESEARCH_STAMP: AlbumStamp = {
   baseColor: "#e8ecef",
   textShadow: "3px 3px 0 #14141a",
-  glowColor: "rgba(230, 39, 24, 0.5)", // red (sticker)
+  glowColor: "rgba(230, 39, 24, 0.5)",
   wipeColors: [
-    "#e62718", // red sticker
-    "#d68a82", // dusty rose → off-white
-    "#e8ecef", // cool off-white (jewel case)
-    "#c5d0d8", // pale silver-gray → silver
-    "#a5b4be", // silver disc surface
-    "#9aa0a8", // warm pewter (subtle warm-cool tilt in the disc)
-    "#5a6068", // dark silver → charcoal
-    "#2d2d2d", // deep charcoal (CD center, lifted from pure black)
-    "#4a5870", // muted slate → holographic
-    "#7a8a9a", // deeper holographic silver-blue
-    "#a5c8d8", // icy blue (disc holographic shimmer)
-    "#b87880", // dusty rose → red (closes loop)
+    "#e62718",
+    "#e8ecef",
+    "#c5d0d8",
+    "#a5b4be",
+    "#5a6068",
+    "#2d2d2d",
+    "#4a5870",
+    "#a5c8d8",
   ],
-} as const;
+};
 
-// MBDTF stamp (Projects, phoenix cover): the cover is dominantly warm —
-// bold crimson field, gold frame, peach skin, dark brown wings — with a
-// single cool accent (sky blue from the pixelated sky). Cycle order
-// clusters the warm tones together and isolates the blue as a brief cool
-// break, mirroring the cover's composition. Bridges only use tones
-// actually visible on the cover (warm red-orange, honey, sienna, slate at
-// the brown/blue boundary, burgundy in the wing edges) — no olive, no
-// mauve. MBDTF's "magnum opus / masterpiece work" feel fits Projects.
-const PROJECTS_STAMP = {
-  baseColor: "#f0dccb",
-  textShadow: "3px 3px 0 #4a0a08",
-  glowColor: "rgba(214, 42, 42, 0.5)", // crimson (MBDTF's dominant field — the most iconic color of the cover)
+const HOBBIES_STAMP: AlbumStamp = {
+  baseColor: "#f4d6a8",
+  textShadow: "3px 3px 0 #1a1a1a",
+  glowColor: "rgba(232, 136, 48, 0.55)",
   wipeColors: [
-    "#d62a2a", // crimson red (background)
-    "#d05828", // warm red-orange → gold
-    "#d4a040", // frame gold
-    "#dca678", // warm honey → peach
-    "#d4a08c", // skin peach (figure)
-    "#b88a5a", // warm tan (mid-lightness step bridges peach → sienna)
-    "#8a5a3a", // burnt sienna → brown
-    "#3d2418", // dark wood brown (wings)
-    "#3a4858", // dark slate → blue (the brown/blue pixel boundary)
-    "#3e6e9c", // sky blue (pixel sky)
-    "#7a3030", // deep burgundy → red (closes loop)
+    "#e88830",
+    "#dca068",
+    "#e0d0a8",
+    "#a8784a",
+    "#5a96b4",
+    "#384858",
+    "#2d2d2d",
+    "#7a4828",
   ],
-} as const;
+};
 
-// Jesus Is King stamp (cobalt vinyl variant): the iconic identity is bold
-// cobalt blue, with the cream label, gold "JESUS IS KING" text, and deep
-// navy shadows as accents. Cycle order clusters the blues and lets the
-// cream + gold be a brief warm break before returning through navy.
-const CONTACT_STAMP = {
+const CONTACT_STAMP: AlbumStamp = {
   baseColor: "#e8d8b8",
   textShadow: "3px 3px 0 #10204a",
-  glowColor: "rgba(200, 160, 64, 0.5)", // gold ("JESUS IS KING" text — pops against the dark purple page bg cobalt would blend into)
+  glowColor: "rgba(200, 160, 64, 0.5)",
   wipeColors: [
-    "#1e44e8", // cobalt blue (vinyl)
-    "#3258e8", // brighter cobalt → sky
-    "#5a8ae8", // sky blue (vinyl rim highlight)
-    "#a8b4c5", // cool silver-gray → cream
-    "#e8d8b8", // cream (label)
-    "#d8c080", // pale honey → gold
-    "#c8a040", // gold ("JESUS IS KING" text)
-    "#7a6840", // dark bronze (mid-lightness step bridges gold → olive-bronze)
-    "#48483a", // dark olive-bronze → navy
-    "#0a1850", // deep navy (label shadows / center hole)
-    "#1830a8", // rich blue → cobalt (closes loop)
+    "#1e44e8",
+    "#3258e8",
+    "#5a8ae8",
+    "#a8b4c5",
+    "#e8d8b8",
+    "#c8a040",
+    "#48483a",
+    "#0a1850",
   ],
-} as const;
+};
 
-// The Life of Pablo stamp: famously orange + black — the construction-orange
-// field is the dominant identity, the black text the second pillar. The two
-// photo insets contribute sepia cream + warm tan (wedding photo) and pool
-// blue (bottom photo) as supporting accents. Cycle order walks from the
-// dominant orange through the warm photo tones, dips into the cool pool
-// blue, drops into charcoal, then bridges back through dark sienna. Bridges
-// stay inside the cover's actual tonal vocabulary.
-const HOBBIES_STAMP = {
-  baseColor: "#f0dccb",
-  textShadow: "3px 3px 0 #1a1a1a",
-  glowColor: "rgba(232, 136, 48, 0.55)", // construction orange (TLOP field)
-  wipeColors: [
-    "#e88830", // construction orange (background)
-    "#dca068", // warm honey → sepia
-    "#e0d0a8", // sepia cream (vintage photo)
-    "#b89860", // warm khaki → tan
-    "#a8784a", // warm tan (photo skin/clothing)
-    "#6a7888", // dusty teal → blue
-    "#5a96b4", // pool blue (water)
-    "#4a6878", // dusty cool blue (mid-lightness step bridges blue → slate)
-    "#384858", // dark slate → charcoal
-    "#2d2d2d", // charcoal black (text, lifted from pure black)
-    "#7a4828", // dark sienna → orange (closes loop)
-  ],
-} as const;
-
-const SECTIONS: Array<{
+const SECTIONS: ReadonlyArray<{
   id: Exclude<SectionId, "rest">;
-  label: string;
   title: string;
   href: string;
-  stamp?: AlbumStamp;
-  album?: AlbumKey;
+  stamp: AlbumStamp;
+  album: AlbumKey;
+  label: string;
 }> = [
   {
     id: "about",
-    label: "01",
     title: "About",
-    href: "#about",
+    href: "/about",
     stamp: ABOUT_STAMP,
     album: "college-dropout",
+    label: "01",
   },
   {
     id: "projects",
-    label: "02",
     title: "Projects",
-    href: "#projects",
+    href: "/projects",
     stamp: PROJECTS_STAMP,
     album: "mbdtf",
+    label: "02",
   },
   {
     id: "research",
-    label: "03",
     title: "Research",
-    href: "#research",
+    href: "/research",
     stamp: RESEARCH_STAMP,
     album: "yeezus",
+    label: "03",
   },
   {
     id: "hobbies",
-    label: "04",
     title: "Hobbies",
-    href: "#hobbies",
+    href: "/hobbies",
     stamp: HOBBIES_STAMP,
     album: "tlop",
+    label: "04",
   },
   {
     id: "contact",
-    label: "05",
     title: "Contact",
-    href: "mailto:ozielutcs@gmail.com",
+    href: "/contact",
     stamp: CONTACT_STAMP,
     album: "jik",
+    label: "05",
   },
 ];
 
+type Position = { cycle: number; idx: number };
+
 export function Sections() {
   const reduced = useReducedMotion();
-  const [active, setActive] = useState<SectionId>("rest");
-  const [activeY, setActiveY] = useState(0);
-  const liRefs = useRef<Array<HTMLLIElement | null>>([]);
+  const [position, setPosition] = useState<Position>({
+    cycle: REAL_CYCLE,
+    idx: 0,
+  });
+  const [introDone, setIntroDone] = useState(false);
+  // Until the user actually rotates the wheel, the global active-section
+  // stays at "rest" so the header IdleCat keeps her chat. Engaging with the
+  // wheel hands the spotlight to the laptop-side CatCompanion.
+  const [userEngaged, setUserEngaged] = useState(false);
+  const reelY = useMotionValue(
+    reelYToCenter(REAL_CYCLE - INTRO_OFFSET_CYCLES, 0),
+  );
+  const wheelLockRef = useRef(false);
 
-  const focusSection = (id: SectionId, idx: number) => {
-    setActive(id);
-    setActiveSection(id);
-    const el = liRefs.current[idx];
-    if (el) {
-      // Anchor the cat companion so the cat's center sits on the title's center.
-      setActiveY(el.offsetTop + TITLE_CENTER_Y_IN_LI - CAT_CENTER_Y);
+  // Intro spin — runs once on mount. Does NOT publish an active section so
+  // the header IdleCat keeps her chat going until the user rotates.
+  useEffect(() => {
+    if (reduced) {
+      reelY.set(reelYToCenter(REAL_CYCLE, 0));
+      setIntroDone(true);
+      return;
     }
+    const controls = animate(reelY, reelYToCenter(REAL_CYCLE, 0), {
+      duration: INTRO_DURATION_S,
+      ease: INTRO_EASE,
+    });
+    controls.then(() => {
+      setIntroDone(true);
+    });
+    return () => controls.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Animate reel into the new position whenever the centered item changes.
+  useEffect(() => {
+    if (!introDone) return;
+    const target = reelYToCenter(position.cycle, position.idx);
+    if (reduced) {
+      reelY.set(target);
+    } else {
+      const controls = animate(reelY, target, STEP_SPRING);
+      return () => controls.stop();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position.cycle, position.idx, introDone]);
+
+  // Mirror centered idx into global state, but only after engagement.
+  useEffect(() => {
+    if (!userEngaged) return;
+    setActiveSection(SECTIONS[position.idx]!.id);
+  }, [position.idx, userEngaged]);
+
+  // Reset header cat when this view unmounts.
+  useEffect(() => () => setActiveSection("rest"), []);
+
+  const advance = useCallback(
+    (dir: 1 | -1) => {
+      if (!introDone) return;
+      setUserEngaged(true);
+      setPosition(({ cycle, idx }) => {
+        let newIdx = idx + dir;
+        let newCycle = cycle;
+        if (newIdx >= N_SECTIONS) {
+          newIdx = 0;
+          newCycle += 1;
+        } else if (newIdx < 0) {
+          newIdx = N_SECTIONS - 1;
+          newCycle -= 1;
+        }
+        // Silently re-anchor to REAL_CYCLE if we're drifting too far so we
+        // never scroll out of the rendered cycles.
+        if (Math.abs(newCycle - REAL_CYCLE) > SNAP_THRESHOLD) {
+          reelY.set(reelYToCenter(REAL_CYCLE, newIdx));
+          newCycle = REAL_CYCLE;
+        }
+        return { cycle: newCycle, idx: newIdx };
+      });
+    },
+    [introDone, reelY],
+  );
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (Math.abs(e.deltaY) < 5) return;
+    if (wheelLockRef.current) return;
+    wheelLockRef.current = true;
+    advance(e.deltaY > 0 ? 1 : -1);
+    window.setTimeout(() => {
+      wheelLockRef.current = false;
+    }, WHEEL_LOCK_MS);
   };
 
-  const blurSection = () => {
-    setActive("rest");
-    setActiveSection("rest");
-  };
+  // Snap-to-nearest-slot after a drag/swipe. Throw velocity gets projected
+  // forward so a flick advances multiple slots, while a small release just
+  // snaps back to the closest one.
+  const handleDragEnd = useCallback(
+    (velocity: number) => {
+      if (!introDone) return;
+      setUserEngaged(true);
+      const projectedY = reelY.get() + velocity * DRAG_PROJECTION_S;
+      const targetColumnCenterY = SCREEN_HALF - projectedY;
+      const slotN = Math.round(
+        (targetColumnCenterY - SLOT_HEIGHT / 2) / SLOT_HEIGHT,
+      );
+      let newCycle = Math.floor(slotN / N_SECTIONS);
+      let newIdx =
+        ((slotN % N_SECTIONS) + N_SECTIONS) % N_SECTIONS;
+      if (Math.abs(newCycle - REAL_CYCLE) > SNAP_THRESHOLD) {
+        reelY.set(reelYToCenter(REAL_CYCLE, newIdx));
+        newCycle = REAL_CYCLE;
+      }
+      setPosition({ cycle: newCycle, idx: newIdx });
+    },
+    [introDone, reelY],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        e.preventDefault();
+        advance(1);
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        advance(-1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [advance]);
 
   return (
     <section
       id="sections"
       aria-label="Site sections"
-      className="relative px-10 pb-40 sm:px-16 md:pl-32"
+      className="relative flex justify-center px-4 pt-6 pb-12"
     >
-      <div className="grid grid-cols-1 gap-16 md:grid-cols-[auto_minmax(0,1fr)] md:gap-24 lg:gap-32">
-        <ul className="flex flex-col items-start gap-14 sm:gap-16">
-          {SECTIONS.map((s, idx) => (
-            <li
-              key={s.id}
-              ref={(el) => {
-                liRefs.current[idx] = el;
-              }}
-              onMouseEnter={() => focusSection(s.id, idx)}
-              onMouseLeave={blurSection}
-              onFocus={() => focusSection(s.id, idx)}
-              onBlur={blurSection}
-            >
-              <LevitatingCard
-                label={s.label}
-                title={s.title}
-                href={s.href}
-                stamp={s.stamp}
-                album={s.album}
-              />
-            </li>
-          ))}
-        </ul>
-        <aside aria-hidden className="relative hidden md:block">
+      {/* Side cat shows up only after the user actually rotates the wheel —
+          before then the header IdleCat owns the chat slot, so we don't
+          fight for attention or kick her out mid-line. z-20 keeps the
+          companion + her bubble painted on top of the laptop chassis no
+          matter what's happening on the wheel. */}
+      {userEngaged && (
+        <div
+          aria-hidden
+          className="cat-static pointer-events-none absolute right-6 z-20 hidden lg:block xl:right-12"
+          style={{ top: "calc(50% - 180px)", width: 510, height: 360 }}
+        >
+          <CatCompanion active={SECTIONS[position.idx]!.id} />
+        </div>
+      )}
+      <RetroLaptop>
+        <div
+          className="relative h-full overflow-hidden focus-visible:outline-none"
+          onWheel={handleWheel}
+          tabIndex={0}
+          role="listbox"
+          aria-label="Section wheel — scroll, swipe, or arrow keys to rotate"
+        >
           <motion.div
-            className="absolute left-0 top-0 w-full"
-            animate={{ y: activeY }}
-            transition={
-              reduced
-                ? { duration: 0 }
-                : { type: "spring", stiffness: 240, damping: 28, mass: 0.9 }
-            }
+            className="absolute inset-x-0 top-0 cursor-grab active:cursor-grabbing"
+            style={{ y: reelY }}
+            drag={introDone ? "y" : false}
+            dragMomentum={false}
+            dragElastic={0.08}
+            onDragEnd={(_, info) => handleDragEnd(info.velocity.y)}
           >
-            <CatCompanion active={active} />
+            {Array.from({ length: CYCLES }).map((_, cycle) =>
+              SECTIONS.map((s, idx) => {
+                const slotOffset =
+                  cycle * N_SECTIONS + idx -
+                  (position.cycle * N_SECTIONS + position.idx);
+                const isCenter = slotOffset === 0;
+                const clickable = Math.abs(slotOffset) <= 2;
+                return (
+                  <WheelItem
+                    key={`${cycle}-${idx}`}
+                    section={s}
+                    rowY={itemColumnY(cycle, idx)}
+                    reelY={reelY}
+                    isCenter={isCenter}
+                    clickable={clickable}
+                    onActivate={() => {
+                      setUserEngaged(true);
+                      setPosition({ cycle, idx });
+                    }}
+                  />
+                );
+              }),
+            )}
           </motion.div>
-        </aside>
-      </div>
+        </div>
+      </RetroLaptop>
     </section>
+  );
+}
+
+type WheelItemProps = {
+  section: (typeof SECTIONS)[number];
+  rowY: number;
+  reelY: MotionValue<number>;
+  isCenter: boolean;
+  clickable: boolean;
+  onActivate: () => void;
+};
+
+function WheelItem({
+  section,
+  rowY,
+  reelY,
+  isCenter,
+  clickable,
+  onActivate,
+}: WheelItemProps) {
+  // Distance, in column coords, from this row's center to the visible
+  // window's center. Drives both scale and opacity falloff.
+  const distance = useTransform(reelY, (ry) =>
+    Math.abs(rowY + ry - SCREEN_HALF),
+  );
+  const scale = useTransform(
+    distance,
+    [0, SLOT_HEIGHT, SLOT_HEIGHT * 2, SLOT_HEIGHT * 3],
+    [1.0, 0.78, 0.55, 0.4],
+  );
+  const opacity = useTransform(
+    distance,
+    [0, SLOT_HEIGHT * 0.6, SLOT_HEIGHT * 1.6, SLOT_HEIGHT * 2.5],
+    [1.0, 0.55, 0.18, 0],
+  );
+
+  return (
+    <motion.div
+      className="absolute left-0 right-0 flex items-center pl-8"
+      style={{
+        top: rowY - SLOT_HEIGHT / 2,
+        height: SLOT_HEIGHT,
+        scale,
+        opacity,
+        transformOrigin: "left center",
+        pointerEvents: clickable ? "auto" : "none",
+      }}
+      role="option"
+      aria-selected={isCenter}
+      onClick={(e) => {
+        if (!isCenter) {
+          e.preventDefault();
+          onActivate();
+        }
+      }}
+    >
+      <LevitatingCard
+        title={section.title}
+        href={isCenter ? section.href : undefined}
+        stamp={section.stamp}
+        album={section.album}
+        label={section.label}
+      />
+    </motion.div>
   );
 }

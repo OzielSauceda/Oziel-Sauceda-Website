@@ -51,7 +51,6 @@ export type AlbumStamp = {
 };
 
 type LevitatingCardProps = {
-  label: string;
   title: string;
   href?: string;
   baseLift?: number;
@@ -60,6 +59,12 @@ type LevitatingCardProps = {
   rainbowDuration?: number;
   stamp?: AlbumStamp;
   album?: AlbumKey;
+  /** Optional numeric prefix rendered ahead of the album sprite (e.g. "01"). */
+  label?: string;
+  /** Inline pill layout (album + title on one row, smaller type) for use
+      in the sticky header nav. Preserves the same lift / bob / glow /
+      color-wipe behavior, just at a compact scale. */
+  compact?: boolean;
 };
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
@@ -78,29 +83,31 @@ const DEFAULT_TEXT_SHADOW = "var(--shadow-pixel-text)";
 const DEFAULT_GLOW_COLOR = "rgba(217, 70, 239, 0.45)";
 
 export function LevitatingCard({
-  label,
   title,
   href,
-  baseLift = 8,
-  bobAmplitude = 3,
+  baseLift,
+  bobAmplitude,
   bobDuration = 1.7,
   rainbowDuration = 2.7,
   stamp,
   album,
+  label,
+  compact = false,
 }: LevitatingCardProps) {
   const reduced = useReducedMotion();
   const useStamp = stamp !== undefined;
+  const lift = baseLift ?? (compact ? 5 : 8);
+  const bobAmp = bobAmplitude ?? (compact ? 1.8 : 3);
 
-  const characters = title.split("");
-  const items: Array<{ char: string; isArrow: boolean }> = characters.map(
-    (c) => ({ char: c, isArrow: false }),
-  );
-  if (href) items.push({ char: "→", isArrow: true });
+  const items = title.split("");
 
   const bobStagger = bobDuration / items.length;
-  const bobKeyframes = BOB_SHAPE.map((s) => bobAmplitude * s);
+  const bobKeyframes = BOB_SHAPE.map((s) => bobAmp * s);
 
-  const restColor = useStamp ? stamp.baseColor : "var(--color-ink)";
+  // Compact (header-nav) titles default to plain ink/white at rest — the
+  // album palette only appears on hover via the wipe animation. The big
+  // section-list variant still uses the stamp's tinted base color.
+  const restColor = !compact && useStamp ? stamp.baseColor : "var(--color-ink)";
 
   const liftVariants: Variants = {
     rest: {
@@ -119,7 +126,7 @@ export function LevitatingCard({
 
       if (useStamp) {
         return {
-          y: -baseLift,
+          y: -lift,
           // Same rotating-rainbow flow as the non-stamp sections, but using
           // the album's wipeColors. Each letter starts at a different stop
           // so the whole palette is visible across the word at any moment
@@ -141,7 +148,7 @@ export function LevitatingCard({
       }
 
       return {
-        y: -baseLift,
+        y: -lift,
         color: rotateRainbow(i, items.length, RAINBOW),
         transition: {
           y: {
@@ -163,6 +170,7 @@ export function LevitatingCard({
   // hover-only and consistent across every section. The hard pixel offset
   // (textShadow) stays static on the inline style.
   const glowColor = useStamp ? stamp.glowColor : DEFAULT_GLOW_COLOR;
+  const glowBlur = compact ? 4 : 9;
   const titleVariants: Variants = {
     rest: {
       filter: "drop-shadow(0 0 0 rgba(0,0,0,0))",
@@ -173,7 +181,7 @@ export function LevitatingCard({
     hover: {
       filter: reduced
         ? "drop-shadow(0 0 0 rgba(0,0,0,0))"
-        : `drop-shadow(0 0 9px ${glowColor})`,
+        : `drop-shadow(0 0 ${glowBlur}px ${glowColor})`,
       transition: reduced
         ? { duration: 0 }
         : { duration: 0.35, ease: EASE_OUT },
@@ -201,49 +209,61 @@ export function LevitatingCard({
 
   const Tag = href ? motion.a : motion.div;
 
+  const wrapperClass = compact
+    ? "group relative inline-flex flex-row items-center gap-3 no-underline outline-none"
+    : "group relative inline-flex flex-row items-center gap-5 no-underline outline-none sm:gap-6";
+  const titleClass = compact
+    ? "block whitespace-nowrap font-display text-[24px] font-normal uppercase leading-none tracking-[0.02em]"
+    : "block whitespace-nowrap font-pixel text-[1.5rem] font-normal uppercase leading-[1.1] tracking-[0.04em] sm:text-[1.75rem] xl:text-[2rem]";
+  const albumSize = compact ? 22 : 32;
+
   return (
     <Tag
       {...(href ? { href } : {})}
       initial="rest"
       animate="rest"
       whileHover="hover"
-      whileFocus="hover"
-      className="group relative inline-flex flex-col items-start no-underline outline-none"
+      {...(compact ? {} : { whileFocus: "hover" })}
+      className={wrapperClass}
     >
-      <span className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.24em] text-accent">
-        {album ? <AlbumSprite album={album} size={26} /> : null}
-        {label}
-      </span>
+      {label ? (
+        <span
+          aria-hidden
+          className={
+            compact
+              ? "font-mono text-[10px] uppercase tracking-[0.18em] text-muted"
+              : "font-mono text-[12px] uppercase tracking-[0.22em] text-muted sm:text-[13px]"
+          }
+        >
+          {label}
+        </span>
+      ) : null}
+      {album ? <AlbumSprite album={album} size={albumSize} /> : null}
       <motion.span
         aria-label={title}
         variants={titleVariants}
-        className="mt-10 block whitespace-nowrap pt-2 font-pixel text-[2rem] font-normal leading-[1.2] tracking-normal sm:text-[3rem]"
+        className={titleClass}
         style={{
           textShadow: useStamp ? stamp.textShadow : DEFAULT_TEXT_SHADOW,
         }}
       >
-        {items.map((item, i) => {
-          const outerClass = item.isArrow
-            ? "ml-2 inline-block translate-y-[-0.05em] text-lg sm:ml-3 sm:text-xl"
-            : "inline-block";
-          return (
+        {items.map((char, i) => (
+          <motion.span
+            key={`${char}-${i}`}
+            aria-hidden
+            custom={i}
+            variants={liftVariants}
+            className="inline-block"
+          >
             <motion.span
-              key={item.isArrow ? "arrow" : `${item.char}-${i}`}
-              aria-hidden
               custom={i}
-              variants={liftVariants}
-              className={outerClass}
+              variants={bobVariants}
+              className="inline-block"
             >
-              <motion.span
-                custom={i}
-                variants={bobVariants}
-                className="inline-block"
-              >
-                {item.char === " " ? " " : item.char}
-              </motion.span>
+              {char === " " ? " " : char}
             </motion.span>
-          );
-        })}
+          </motion.span>
+        ))}
       </motion.span>
     </Tag>
   );
